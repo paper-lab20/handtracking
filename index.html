@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -32,58 +33,85 @@ const loadingEl=document.getElementById('loading');
 let W,H;
 function resize(){W=canvas.width=window.innerWidth;H=canvas.height=window.innerHeight;}
 resize();window.addEventListener('resize',resize);
-const NODES=20;
-let band=Array.from({length:NODES},()=>({x:0,y:0,vx:0,vy:0}));
+
+// Fingertip indices für beide Hände
+const TIPS=[4,8,12,16,20];
+const NODES=16;
+
+// Bänder zwischen je einem Fingertip der linken und rechten Hand
+// 5 Fingertips x 5 Fingertips = bis zu 25 Bänder, wir nehmen 5 schönste
+const PAIRS=[[4,4],[8,8],[12,12],[16,16],[20,20],[4,8],[8,12],[12,16],[16,20]];
+
+let bands=PAIRS.map(()=>Array.from({length:NODES},()=>({x:0,y:0,vx:0,vy:0})));
 let handData=[];
-function getAnchor(hand){return{x:hand[8].x*W,y:hand[8].y*H};}
-function updateBand(){
-  if(handData.length<2){
-    for(let i=0;i<band.length;i++){band[i].vx+=(W/2-band[i].x)*.05;band[i].vy+=(H/2-band[i].y)*.05;band[i].vx*=.8;band[i].vy*=.8;band[i].x+=band[i].vx;band[i].y+=band[i].vy;}
-    return;
-  }
-  const a=getAnchor(handData[0]),b=getAnchor(handData[1]);
-  band[0].x=a.x;band[0].y=a.y;band[NODES-1].x=b.x;band[NODES-1].y=b.y;
+
+function getPoint(hand,idx){return{x:hand[idx].x*W,y:hand[idx].y*H};}
+
+function updateBand(band,a,b){
+  band[0].x=a.x;band[0].y=a.y;
+  band[NODES-1].x=b.x;band[NODES-1].y=b.y;
   for(let i=1;i<NODES-1;i++){
     const t=i/(NODES-1);
     const tx=a.x+(b.x-a.x)*t,ty=a.y+(b.y-a.y)*t;
-    const sag=Math.sin(Math.PI*t)*40;
-    band[i].vx+=(tx-band[i].x)*.12;band[i].vy+=(ty+sag-band[i].y)*.12;
-    band[i].vy+=.4;band[i].vx*=.85;band[i].vy*=.85;band[i].x+=band[i].vx;band[i].y+=band[i].vy;
+    const sag=Math.sin(Math.PI*t)*30;
+    band[i].vx+=(tx-band[i].x)*.15;
+    band[i].vy+=(ty+sag-band[i].y)*.15;
+    band[i].vy+=.3;
+    band[i].vx*=.82;band[i].vy*=.82;
+    band[i].x+=band[i].vx;band[i].y+=band[i].vy;
   }
 }
-function drawBand(){
-  if(handData.length<2)return;
-  const a=getAnchor(handData[0]),b=getAnchor(handData[1]);
-  const dist=Math.sqrt((a.x-b.x)**2+(a.y-b.y)**2);
-  const stretch=Math.min(dist/(W*.5),1);
-  const hue=280-stretch*120;
+
+function drawBand(band,hue,alpha){
+  const dist=Math.sqrt((band[0].x-band[NODES-1].x)**2+(band[0].y-band[NODES-1].y)**2);
+  const stretch=Math.min(dist/(W*.4),1);
+  const h=hue-stretch*80;
   ctx.beginPath();ctx.moveTo(band[0].x,band[0].y);
   for(let i=1;i<band.length;i++)ctx.lineTo(band[i].x,band[i].y);
-  ctx.shadowBlur=20+stretch*30;ctx.shadowColor=`hsla(${hue},90%,70%,.9)`;
-  ctx.strokeStyle=`hsla(${hue},80%,75%,.95)`;ctx.lineWidth=3;ctx.lineCap='round';ctx.stroke();
-  ctx.beginPath();ctx.moveTo(band[0].x,band[0].y);
-  for(let i=1;i<band.length;i++)ctx.lineTo(band[i].x,band[i].y);
-  ctx.shadowBlur=6;ctx.strokeStyle=`hsla(${hue},100%,92%,.7)`;ctx.lineWidth=1;ctx.stroke();
+  ctx.shadowBlur=14+stretch*20;
+  ctx.shadowColor=`hsla(${h},90%,70%,.8)`;
+  ctx.strokeStyle=`hsla(${h},80%,72%,${alpha})`;
+  ctx.lineWidth=1.8;ctx.lineCap='round';ctx.stroke();
   ctx.shadowBlur=0;
 }
+
 function drawHands(){
   const C=[[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[0,9],[9,10],[10,11],[11,12],[0,13],[13,14],[14,15],[15,16],[0,17],[17,18],[18,19],[19,20],[5,9],[9,13],[13,17]];
   for(const hand of handData){
-    ctx.shadowBlur=4;ctx.shadowColor='rgba(200,150,255,.3)';ctx.strokeStyle='rgba(200,150,255,.2)';ctx.lineWidth=1;
+    ctx.shadowBlur=3;ctx.strokeStyle='rgba(200,150,255,.18)';ctx.lineWidth=1;
     for(const[a,b]of C){ctx.beginPath();ctx.moveTo(hand[a].x*W,hand[a].y*H);ctx.lineTo(hand[b].x*W,hand[b].y*H);ctx.stroke();}
-    for(const pt of hand){ctx.shadowBlur=8;ctx.fillStyle='rgba(220,180,255,.5)';ctx.beginPath();ctx.arc(pt.x*W,pt.y*H,2.5,0,Math.PI*2);ctx.fill();}
-    const tip=hand[8];ctx.shadowBlur=25;ctx.shadowColor='rgba(255,150,255,1)';ctx.fillStyle='rgba(255,200,255,1)';ctx.beginPath();ctx.arc(tip.x*W,tip.y*H,7,0,Math.PI*2);ctx.fill();
+    for(const pt of hand){ctx.fillStyle='rgba(220,180,255,.4)';ctx.beginPath();ctx.arc(pt.x*W,pt.y*H,2,0,Math.PI*2);ctx.fill();}
+    for(const tip of TIPS){
+      const p=hand[tip];
+      ctx.shadowBlur=20;ctx.shadowColor='rgba(255,150,255,1)';
+      ctx.fillStyle='rgba(255,210,255,1)';
+      ctx.beginPath();ctx.arc(p.x*W,p.y*H,6,0,Math.PI*2);ctx.fill();
+    }
   }
   ctx.shadowBlur=0;
 }
+
 function render(){
   ctx.clearRect(0,0,W,H);
   const vg=ctx.createRadialGradient(W/2,H/2,H*.1,W/2,H/2,H*.9);
-  vg.addColorStop(0,'rgba(0,0,0,0)');vg.addColorStop(1,'rgba(0,0,8,.75)');
+  vg.addColorStop(0,'rgba(0,0,0,0)');vg.addColorStop(1,'rgba(0,0,8,.8)');
   ctx.fillStyle=vg;ctx.fillRect(0,0,W,H);
-  updateBand();drawBand();drawHands();
+
+  if(handData.length===2){
+    PAIRS.forEach(([ai,bi],i)=>{
+      const a=getPoint(handData[0],ai);
+      const b=getPoint(handData[1],bi);
+      updateBand(bands[i],a,b);
+      const hue=260+i*20;
+      const alpha=i<5?0.95:0.5;
+      drawBand(bands[i],hue,alpha);
+    });
+  }
+
+  drawHands();
   requestAnimationFrame(render);
 }
+
 async function init(){
   try{
     const stream=await navigator.mediaDevices.getUserMedia({video:{width:1280,height:720,facingMode:'user'},audio:false});
@@ -93,12 +121,14 @@ async function init(){
     hands.onResults(r=>{
       handData=(r.multiHandLandmarks||[]).map(lm=>lm.map(p=>({x:1-p.x,y:p.y})));
       const c=handData.length;
-      statusEl.textContent=c===2?'Band aktiv – zieh auseinander!':c===1?'Zeig die zweite Hand!':'Zeig beide Hände!';
+      statusEl.textContent=c===2?'Zieh die Hände auseinander!':c===1?'Zeig die zweite Hand!':'Zeig beide Hände!';
       statusEl.className=c===2?'active':'';
     });
     const cam=new Camera(video,{onFrame:async()=>{await hands.send({image:video});},width:1280,height:720});
     await cam.start();loadingEl.style.display='none';render();
-  }catch(e){loadingEl.innerHTML='<p style="color:rgba(255,100,100,.7)">Kamera-Zugriff verweigert.<br>Bitte erlaube die Kamera.</p>';}
+  }catch(e){
+    loadingEl.innerHTML='<p style="color:rgba(255,100,100,.7)">Kamera-Zugriff verweigert.<br>Bitte erlaube die Kamera.</p>';
+  }
 }
 init();
 </script>
